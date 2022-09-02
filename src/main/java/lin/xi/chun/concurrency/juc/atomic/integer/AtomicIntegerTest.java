@@ -3,6 +3,11 @@ package lin.xi.chun.concurrency.juc.atomic.integer;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
+ * J.U.C 并发包提供了：
+ * - AtomicBoolean
+ * - AtomicInteger
+ * - AtomicLong
+ * 三者用法类似
  * @author zhou.wu
  * @description: 原子整数测试
  * @date 2022/9/1
