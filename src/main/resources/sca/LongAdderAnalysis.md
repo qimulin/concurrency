@@ -102,7 +102,7 @@ Cell 是数组形式，在内存中是连续存储的，一个 Cell 为 24 字�
 比如，将Cell[0]和Cell[1]不处于同一个缓存行，这样一个缓存行顶多读一个Cell对象从而让 CPU 将对象预读至缓存时占用不同的缓存行，这样，不会造成对方缓存行的失效  
 ![防止缓存行失效](../images/20220902003.png)
 ## add方法
-add方法流程：
+add方法流程：  
 ![add方法流程](../images/20220902004.png)
 ```java
 public class LongAdder extends Striped64 implements Serializable {
