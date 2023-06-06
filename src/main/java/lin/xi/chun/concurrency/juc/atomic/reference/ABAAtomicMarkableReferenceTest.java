@@ -28,15 +28,18 @@ public class ABAAtomicMarkableReferenceTest {
         log.debug(prev.toString());
 
         new Thread(() -> {
-            log.debug("打扫卫生的线程 start...");
+            log.debug("保洁打扫卫生的线程 start...");
             // 清空垃圾袋
             bag.setDesc("空垃圾袋");
+            // 除原标记(expectedMark)是true外，不设置新值(newMark)false
             while (!ref.compareAndSet(bag, bag, true, false)) {}
+            // CAS成功，跳出while才能来到这
             log.debug(bag.toString());
         }).start();
 
         Thread.sleep(1000);
-        log.debug("主线程想换一只新垃圾袋？");
+        log.debug("主线程想自己换一只新垃圾袋？");
+        // success记录是否换成功，被其他线程先倒空垃圾的话，自己就无需换垃圾袋了
         boolean success = ref.compareAndSet(prev, new GarbageBag("空垃圾袋"), true, false);
         log.debug("换了么？" + success);
         log.debug(ref.getReference().toString());
