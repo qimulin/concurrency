@@ -31,3 +31,9 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# 后续添加的
+.mvn/wrapper/*.jar
+.mvn/wrapper/*.properties
+mvnw
+mvnw.cmd
