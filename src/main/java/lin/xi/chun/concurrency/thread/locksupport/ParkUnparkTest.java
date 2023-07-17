@@ -26,6 +26,7 @@ public class ParkUnparkTest {
         Thread t1 = new Thread(() -> {
             log.debug("start...");
             try {
+                // 时间1
                 TimeUnit.SECONDS.sleep(1);
             } catch (InterruptedException e) {
                 e.printStackTrace();
@@ -43,6 +44,7 @@ public class ParkUnparkTest {
 //        TimeUnit.MILLISECONDS.sleep(5);
 //        log.debug("interrupt...");
 //        t1.interrupt();
+        // 时间2
         TimeUnit.SECONDS.sleep(2);
         log.debug("unpark...");
         LockSupport.unpark(t1);
@@ -50,7 +52,7 @@ public class ParkUnparkTest {
 }
 /**
  * 后记：
- * unpark即可以在park之前调用，也可以在park之后调用。如果把上述两个时间长短交换，即可以模拟unpark在park前还是后执行了。
+ * unpark既可以在park之前调用，也可以在park之后调用。如果把上述两个时间1和2长短交换，即可以模拟unpark在park前还是后执行了。
  * 如果先执行unpark方法，则后续调用park()方法第一次将不会起作用，第二次的park()和之之前的未调用unpark先调用park的效果就一样了
  * 自解：另外，看源码可知，如果线程此时打断标记为true
  * （具体原因参见“LockSupport park/unpark原理”）
