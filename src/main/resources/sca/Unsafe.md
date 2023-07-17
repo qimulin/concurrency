@@ -23,3 +23,6 @@ public final class Unsafe {
 }
 ```
 具体使用，参考[示例代码](../../../main/java/lin/xi/chun/concurrency/juc/unsafe/UnsafeDemo.java)
+
+使用自定义的 AtomicData 实现之前线程安全的原子整数AccountSafe（[AtomicInteger实现示例](../../../main/java/lin/xi/chun/concurrency/juc/lock_free/AccountSafe.java)）实现：
+[示例代码](../../../main/java/lin/xi/chun/concurrency/juc/unsafe/UnsafeDemo2.java)
