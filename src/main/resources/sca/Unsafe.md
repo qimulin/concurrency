@@ -22,4 +22,4 @@ public final class Unsafe {
     /* 省略其他代码 */
 }
 ```
-具体使用，参考[示例代码](concurrency/src/main/java/lin/xi/chun/concurrency/juc/unsafe/UnsafeDemo.java)
+具体使用，参考[示例代码](../../../main/java/lin/xi/chun/concurrency/juc/unsafe/UnsafeDemo.java)
