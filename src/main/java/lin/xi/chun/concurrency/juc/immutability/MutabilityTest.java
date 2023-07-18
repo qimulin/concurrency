@@ -20,7 +20,7 @@ public class MutabilityTest {
                 try {
                     log.debug("{}", sdf.parse("1951-04-21"));
                 } catch (Exception e) {
-                    log.error("{}", e);
+                    log.error("parse error", e);
                 }
             }).start();
         }
