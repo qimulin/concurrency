@@ -1,4 +1,5 @@
 # 共享模型之不可变
+自解：不可变类是线程安全的一种实现方式，就是在使用不可变类生成的对象某些情况下由于它的不可变性是可以达到线程安全的要求（具体还是要看业务）。
 ## 不可变类的使用
 先来看使用了SimpleDateFormat这个可变类的[示例代码](../../../../src/main/java/lin/xi/chun/concurrency/juc/immutability/MutabilityTest.java)
 
@@ -189,16 +190,208 @@ public final class String{
 }
 ```
 发现其内部是调用 String 的构造方法创建了一个新字符串，再进入这个构造看看，是否对 final char[] value 做出了修改。
-结果发现也没有，构造新字符串对象时，会生成新的 char[] value，对内容进行复制 。这种通过创建副本对象来避免共享的手段称之为【保护性拷贝（defensive copy）】
+结果发现也没有，构造新字符串对象时，会生成新的 char[] value，对内容进行复制 。这种通过创建副本对象来避免共享的手段称之为【保护性拷贝（defensive copy）】\
+”保护性拷贝“带来的问题就是对象创建得太频繁，容易个数比较多，影响性能。（自解：注意，倒不是说String的设计不好，String肯定是在设计使用它的时候用
+保护性拷贝是比较好的形式，但不能为了不可变类都采用“保护性拷贝”的方式，所以就可以往下看有没有其他的设计）
 
 ### 模式之享元
-<B>定义</B>\
-英文名称: Flyweight patem.当需要重用数量有限的同一类对象时
+#### 简介
+##### 定义
+
+英文名称: Flyweight pattern.当需要<mark>重用</mark>数量有限的同一类对象时。（自解：如果取值相同的对象已经有了，那就可以重用这个对象，而不是每次都要创建）
+
 > wikipedia:
-A flyweight is an object that minimizes memory usage by sharing as much data as possible with other similarobjects
+> A flyweight is an object that minimizes memory usage by sharing as much data as possible with other similar objects\
+> 翻译：享元就是尽可能让相同的对象最小化内存的使用
 
-<B>出自</B>\
-"Gang of Four" design patterns
+##### 出自
+"Gang of Four"(GOF) design patterns
 
-<B>归类</B>\
-Structual patterns
+##### 归类
+
+Structual patterns 结构型模式
+
+#### 体现
+##### 包装类
+在JDK中 Boolean，Byte，Short，Integer，Long，Character 等包装类提供了valueOf方法，例如Long的valueOf会缓存-128~127之间的 Long 对象，
+在这个范围之间会重用对象，大于这个范围，才会新建Long对象：
+```java
+public class Long{
+
+    /**
+     * 私有静态内部类
+     * */
+    private static class LongCache {
+        private LongCache(){}
+
+        static final Long cache[] = new Long[-(-128) + 127 + 1];
+
+        static {
+            // 添加数值-128~127的Long对象缓存到本类的cache数组中
+            for(int i = 0; i < cache.length; i++) {
+                cache[i] = new Long(i - 128);
+            }
+        }
+    }
+    
+    /**
+     * Returns a {@code Long} instance representing the specified
+     * {@code long} value.
+     * If a new {@code Long} instance is not required, this method
+     * should generally be used in preference to the constructor
+     * {@link #Long(long)}, as this method is likely to yield
+     * significantly better space and time performance by caching
+     * frequently requested values.
+     *
+     * Note that unlike the {@linkplain Integer#valueOf(int)
+     * corresponding method} in the {@code Integer} class, this method
+     * is <em>not</em> required to cache values within a particular
+     * range.
+     *
+     * @param  l a long value.
+     * @return a {@code Long} instance representing {@code l}.
+     * @since  1.5
+     */
+    public static Long valueOf(long l) {
+        final int offset = 128;
+        if (l >= -128 && l <= 127) { // will cache 数字在这个范围，将会被缓存
+            return LongCache.cache[(int)l + offset];
+        }
+        return new Long(l);
+    }
+}
+```
+这样常用的数字，就不会转包装类的时候被重复创建多个对象。看下面的例子，就可以知道这个区别了
+```java
+public class Test{
+    public static void main(String[] args) {
+        Long l1 = Long.valueOf(127);
+        Long l2 = Long.valueOf(127);
+        System.out.println(l1==l2); // 输出结果：true 同个对象
+
+        Long l3 = Long.valueOf(128);
+        Long l4 = Long.valueOf(128);
+        System.out.println(l3==l4); // 输出结果：false 不同对象
+    }
+}
+```
+注意：
+- Byte, Short, Long 缓存的范围都是 -128~127
+- Character 缓存的范围是 0~127 
+- Integer的默认范围是 -128~127
+  - 最小值不能变
+  - 但最大值可以通过调整虚拟机参数 `-Djava.lang.Integer.IntegerCache.high` 来改变
+- Boolean 缓存了 TRUE 和 FALSE
+
+##### String串池
+
+注意说的是“串池”，在Java中，字符串池（String Pool）是一种特殊的对象池，用于存储字符串常量。字符串池中的字符串对象是被共享的，多个字符串变量可以引用同一个字符串对象，从而减少了内存使用量和垃圾回收的开销。
+
+在JVM中，字符串池是存储在方法区（也称为永久代）中的。在JDK 8及之前的版本中，字符串池是存储在永久代的字符串常量池中的。而从JDK 8开始，永久代被移除了，字符串池被转移到了堆中，即在Java堆中的一块区域中存储。这个区域被称为“元空间”（Metaspace），它是堆的一部分，用于存储类的元数据信息。
+
+需要注意的是，虽然字符串池本身并不是垃圾回收机制的一部分，但是其中的字符串对象是可以被垃圾回收的。当一个字符串对象不再被任何变量引用时，它就会变成垃圾，最终会被垃圾回收器回收。但是，如果这个字符串对象是字符串池中的对象，并且仍然有其他变量引用它，那么它就不会被回收，直到没有任何变量引用它为止。
+
+##### BigDecimal和BigInteger
+
+有的人可能要问了，既然BigDecimal是不可变类，那为什么之前使用BigDecimal对账户进行取款操作的[例子](../../../../src/main/java/lin/xi/chun/concurrency/juc/atomic/reference/DecimalAccountSafeCas.java)，
+它还需要靠AtomicReference去包装操作呢？来看下BigDecimal的部分源码：
+```java
+public class BigDecimal extends Number implements Comparable<BigDecimal> {
+
+  /**
+   * Sentinel value for {@link #intCompact} indicating the
+   * significand information is only available from {@code intVal}.
+   */
+  static final long INFLATED = Long.MIN_VALUE;  // 为-9223372036854775808
+
+  /* 省略其他代码 */
+
+  /**
+   * 减法方法
+   * Returns a {@code BigDecimal} whose value is {@code (this -
+   * subtrahend)}, and whose scale is {@code max(this.scale(),
+   * subtrahend.scale())}.
+   *
+   * @param  subtrahend value to be subtracted from this {@code BigDecimal}.
+   * @return {@code this - subtrahend}
+   */
+  public BigDecimal subtract(BigDecimal subtrahend) {
+    if (this.intCompact != INFLATED) {
+        // 当本值的小数点前数字非Long最小值
+      if ((subtrahend.intCompact != INFLATED)) {
+        // 当参数值的小数点前数字非Long最小值
+        return add(this.intCompact, this.scale, -subtrahend.intCompact, subtrahend.scale);
+      } else {
+        return add(this.intCompact, this.scale, subtrahend.intVal.negate(), subtrahend.scale);
+      }
+    } else {
+      if ((subtrahend.intCompact != INFLATED)) {
+        // Pair of subtrahend values given before pair of
+        // values from this BigDecimal to avoid need for
+        // method overloading on the specialized add method
+        return add(-subtrahend.intCompact, subtrahend.scale, this.intVal, this.scale);
+      } else {
+        return add(this.intVal, this.scale, subtrahend.intVal.negate(), subtrahend.scale);
+      }
+    }
+  }
+
+  private static BigDecimal add(final long xs, int scale1, BigInteger snd, int scale2) {
+    int rscale = scale1;
+    long sdiff = (long) rscale - scale2;
+    boolean sameSigns = (Long.signum(xs) == snd.signum);
+    BigInteger sum;
+    if (sdiff < 0) {
+      int raise = checkScale(xs, -sdiff);
+      rscale = scale2;
+      long scaledX = longMultiplyPowerTen(xs, raise);
+      if (scaledX == INFLATED) {
+        sum = snd.add(bigMultiplyPowerTen(xs, raise));
+      } else {
+        sum = snd.add(scaledX);
+      }
+    } else { //if (sdiff > 0) {
+      int raise = checkScale(snd, sdiff);
+      snd = bigMultiplyPowerTen(snd, raise);
+      sum = snd.add(xs);
+    }
+    return (sameSigns) ?
+            new BigDecimal(sum, INFLATED, rscale, 0) :
+            valueOf(sum, rscale, 0);
+  }
+}
+```
+（我没有详细读懂源码的每一行）可以看到最终调用add方法，最后返回的是个新的BigDecimal对象，过程中不更改当前BigDecimal对象的数值，因此它也是不可变的。
+那为什么上面示例中还要使用AtomicReference呢？可以看下示例的代码:
+```java
+public class DecimalAccountSafeCas implements DecimalAccount {
+
+    AtomicReference<BigDecimal> ref;
+
+    public DecimalAccountSafeCas(BigDecimal balance) {
+        ref = new AtomicReference<>(balance);
+    }
+
+    @Override
+    public BigDecimal getBalance() {
+        return ref.get();
+    }
+
+    // 取款方法
+    @Override
+    public void withdraw(BigDecimal amount) {
+        while (true) {
+            BigDecimal prev = ref.get();
+            BigDecimal next = prev.subtract(amount);
+            // CAS操作
+            if (ref.compareAndSet(prev, next)) {
+                // 操作成功，退出循环
+                break;
+            }
+        }
+    }
+}
+```
+可以看到取款方法while循环块中的代码，如果不用AtomicReference包裹，那么这个BigDecimal对象早就不是原来初始的BigDecimal对象，在业务层面上达不到线程安全的要求。
+
+
