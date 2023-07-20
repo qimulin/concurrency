@@ -394,4 +394,21 @@ public class DecimalAccountSafeCas implements DecimalAccount {
 ```
 可以看到取款方法while循环块中的代码，如果不用AtomicReference包裹，那么这个BigDecimal对象早就不是原来初始的BigDecimal对象，在业务层面上达不到线程安全的要求。
 
+#### DIY连接池
+
+例如：一个线上商城应用，QPS 达到数千，如果每次都重新创建和关闭数据库连接，性能会受到极大影响。 这时预先创建好一批连接，放入连接池。
+一次请求到达后，从连接池获取连接，使用完毕后再还回连接池，这样既节约了连接的创建和关闭时间，也实现了连接的重用，不至于让庞大的连接数压垮数据库。
+
+模拟连接池的简单实现代码见[示例](../../../../src/main/java/lin/xi/chun/concurrency/juc/immutability/Pool.java)
+
+以上只是个模拟的示例，没有考虑：
+- 连接的动态增长与收缩 —— 适当进行回收
+- 连接保活（可用性检测）—— 网络原因可能会将连接断开
+- 等待超时处理 —— 目前是死等获取连接
+- 分布式 hash
+
+对于关系型数据库，有比较成熟的连接池实现，例如c3p0, druid等 对于更通用的对象池，可以考虑使用apache commons pool，例如redis连接池可以参考jedis中关于连接池的实现
+
+使用测试代码可见[示例](../../../../src/main/java/lin/xi/chun/concurrency/juc/immutability/FlyweightDemoTest.java)
+
 
