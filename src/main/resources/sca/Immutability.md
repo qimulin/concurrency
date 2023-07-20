@@ -1,9 +1,12 @@
 # 共享模型之不可变
 自解：不可变类是线程安全的一种实现方式，就是在使用不可变类生成的对象某些情况下由于它的不可变性是可以达到线程安全的要求（具体还是要看业务）。
-## 不可变类的使用
+## 日期转换的问题
 先来看使用了SimpleDateFormat这个可变类的[示例代码](../../../../src/main/java/lin/xi/chun/concurrency/juc/immutability/MutabilityTest.java)
 
+### 思路-不可变
+
 如果一个对象在不能够修改其内部状态（属性），那么它就是线程安全的，因为不存在并发修改啊！这样的对象在Java中有很多，例如在Java 8后，提供了一个新的日期格式化类：
+
 ```java
 package java.time.format;
 
@@ -411,4 +414,164 @@ public class DecimalAccountSafeCas implements DecimalAccount {
 
 使用测试代码可见[示例](../../../../src/main/java/lin/xi/chun/concurrency/juc/immutability/FlyweightDemoTest.java)
 
+## final原理补充
+
+### **设置** final变量的原理
+
+理解了 volatile 原理，再对比 fifinal 的实现就比较简单了
+
+```java
+public class TestFinal {
+ final int a = 20;
+}
+```
+
+字节码
+
+```tex
+D:\MyDir>javap -v TestFinal.class
+  Last modified 2023-7-20; size 245 bytes
+  MD5 checksum 1eee8099985ad8f58870fc8cfd5833ad
+public class TestFinal
+  minor version: 0
+  major version: 52
+  flags: ACC_PUBLIC, ACC_SUPER
+Constant pool:
+   #1 = Methodref          #4.#15         // java/lang/Object."<init>":()V
+   #2 = Fieldref           #3.#16         // TestFinal.a:I
+   #3 = Class              #17            // TestFinal
+   #4 = Class              #18            // java/lang/Object
+   #5 = Utf8               a
+   #6 = Utf8               I
+   #7 = Utf8               ConstantValue
+   #8 = Integer            20
+   #9 = Utf8               <init>
+  #10 = Utf8               ()V
+  #11 = Utf8               Code
+  #12 = Utf8               LocalVariableTable
+  #13 = Utf8               this
+  #14 = Utf8               LTestFinal;
+  #15 = NameAndType        #9:#10         // "<init>":()V
+  #16 = NameAndType        #5:#6          // a:I
+  #17 = Utf8               TestFinal
+  #18 = Utf8               java/lang/Object
+{
+  final int a;
+    descriptor: I
+    flags: ACC_FINAL
+    ConstantValue: int 20
+
+  public TestFinal();
+    descriptor: ()V
+    flags: ACC_PUBLIC
+    Code:
+      stack=2, locals=1, args_size=1
+         0: aload_0                           // 从本地变量表加载槽位为0的变量到操作数栈，即对应下面LocalVariableTable中name为this加载到操作数栈
+         1: invokespecial #1                  // Method java/lang/Object."<init>":()V 对应上面Constant pool中的“#1”，是父类Object的隐式构造方法
+         4: aload_0                           // 又加载this
+         5: bipush        20                  // 准备"20"这个int value，该值被压入操作数堆栈。
+         7: putfield      #2                  // Field a:I 写屏障 设置前面压进来的this的字段“a”（对应上面Constant pool中的“#2”）的值为后压进操作数栈的int值“20”
+          <-- final修饰之后这里其实会有个写屏障 1、保证写屏障之前的指令不会被重排序到写屏障后面去；2、写屏障之前对共享变量的改动，都同步到主存当中，对其他线程可见
+        10: return
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      11     0  this   LTestFinal;
+}
+```
+
+发现final变量的赋值也会通过putfield指令来完成，同样在这条指令之后也会加入写屏障，保证在其它线程读到它的值时不会出现为0的情况。
+
+### 获取final变量原理
+
+来看一段代码[示例](../../../../src/main/java/lin/xi/chun/concurrency/juc/immutability/TestFinal.java)
+
+选中要要查看的类 UseFina1->View->Show Bytecode 查看对应的字节码
+```java
+class UseFinal1 {
+    public void test() {
+        System.out.println(TestFinal.A);
+        System.out.println(TestFinal.B);
+        System.out.println(new TestFinal().a);
+        System.out.println(new TestFinal().b);
+        new TestFinal().test1();
+    }
+}
+```
+字节码：
+```text
+// class version 52.0 (52)
+// access flags 0x20
+class lin/xi/chun/concurrency/juc/immutability/UseFinal1 {
+
+  // compiled from: TestFinal.java
+
+  // access flags 0x0
+  <init>()V
+   L0
+    LINENUMBER 23 L0
+    ALOAD 0
+    INVOKESPECIAL java/lang/Object.<init> ()V
+    RETURN
+   L1
+    LOCALVARIABLE this Llin/xi/chun/concurrency/juc/immutability/UseFinal1; L0 L1 0
+    MAXSTACK = 1
+    MAXLOCALS = 1
+
+  // access flags 0x1
+  public test()V
+   L0
+    LINENUMBER 25 L0
+    GETSTATIC java/lang/System.out : Ljava/io/PrintStream;
+    BIPUSH 10   // 并没有去TestFinal读静态成员变量A的值，而是相当于把它A的这个值复制到栈中。
+    // 如果A不加final修饰的话，打印的字节码会变成 "GETSTATIC lin/xi/chun/concurrency/juc/immutability/TestFinal.A : I" // 到TestFinal常量池中获取常量，走的共享内存，比走栈内存性能低
+    INVOKEVIRTUAL java/io/PrintStream.println (I)V
+   L1
+    LINENUMBER 26 L1
+    GETSTATIC java/lang/System.out : Ljava/io/PrintStream;
+    LDC 32768   // 从本类常量池获取常量值32768，也没有用GETSTATIC，性能肯定是低于LDC
+    INVOKEVIRTUAL java/io/PrintStream.println (I)V
+   L2
+    LINENUMBER 27 L2
+    GETSTATIC java/lang/System.out : Ljava/io/PrintStream;
+    NEW lin/xi/chun/concurrency/juc/immutability/TestFinal
+    DUP
+    INVOKESPECIAL lin/xi/chun/concurrency/juc/immutability/TestFinal.<init> ()V
+    INVOKEVIRTUAL java/lang/Object.getClass ()Ljava/lang/Class;
+    POP
+    BIPUSH 20   // 原理类似第一个静态成员变量A，只不过我这边是普通成员变量，需要实例化类后获取
+    INVOKEVIRTUAL java/io/PrintStream.println (I)V
+   L3
+    LINENUMBER 28 L3
+    GETSTATIC java/lang/System.out : Ljava/io/PrintStream;
+    NEW lin/xi/chun/concurrency/juc/immutability/TestFinal
+    DUP
+    INVOKESPECIAL lin/xi/chun/concurrency/juc/immutability/TestFinal.<init> ()V
+    INVOKEVIRTUAL java/lang/Object.getClass ()Ljava/lang/Class;
+    POP
+    LDC 2147483647
+    INVOKEVIRTUAL java/io/PrintStream.println (I)V
+   L4
+    LINENUMBER 29 L4     // 原理类似第一个静态成员变量B，只不过我这边是普通成员变量，需要实例化类后获取
+    NEW lin/xi/chun/concurrency/juc/immutability/TestFinal
+    DUP
+    INVOKESPECIAL lin/xi/chun/concurrency/juc/immutability/TestFinal.<init> ()V
+    INVOKEVIRTUAL lin/xi/chun/concurrency/juc/immutability/TestFinal.test1 ()V
+   L5
+    LINENUMBER 30 L5
+    RETURN
+   L6
+    LOCALVARIABLE this Llin/xi/chun/concurrency/juc/immutability/UseFinal1; L0 L6 0
+    MAXSTACK = 3
+    MAXLOCALS = 1
+}
+```
+由上面字节码的中文注释可知，当一个类中使用领一个类的成员变量时
+- 带final时做的优化：相当于把较小的数值复制到操作数栈中，较大的数值复制到当前类从常量池中（自解：数字类型应该是这样，其他类型我没看）
+- 没有final修饰的话，相当于去堆中访问
+
+## 无状态
+
+在 web 阶段学习时，设计 Servlet 时为了保证其线程安全，都会有这样的建议，不要为 Servlet 设置成员变量，这种<mark>没有任何成员变量</mark>的类是线程安全的。
+
+> 因为成员变量保存的数据也可以称为状态信息，因此没有成员变量就称之为【无状态】
 
