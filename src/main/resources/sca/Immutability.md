@@ -418,7 +418,7 @@ public class DecimalAccountSafeCas implements DecimalAccount {
 
 ### **设置** final变量的原理
 
-理解了 volatile 原理，再对比 fifinal 的实现就比较简单了
+理解了volatile原理，再对比final的实现就比较简单了
 
 ```java
 public class TestFinal {
