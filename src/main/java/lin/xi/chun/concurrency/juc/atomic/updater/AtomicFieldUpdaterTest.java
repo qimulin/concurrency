@@ -9,7 +9,7 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
  * - AtomicLongFieldUpdater
  * 利用字段更新器，可以针对对象的某个域（Field|属性|成员变量）进行原子操作，【注意】只能配合 volatile 修饰的字段使用，否则会出现异常
  * @author zhou.wu
- * @description: 原子字段更新器测试
+ * @description 原子字段更新器测试
  * @date 2022/9/2
  **/
 public class AtomicFieldUpdaterTest {
