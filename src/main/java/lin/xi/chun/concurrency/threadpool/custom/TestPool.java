@@ -18,12 +18,46 @@ import java.util.concurrent.locks.ReentrantLock;
 public class TestPool {
 
     public static void main(String[] args) {
-        ThreadPool threadPool = new ThreadPool(2, 1000, TimeUnit.MILLISECONDS, 10);
-        for (int i = 0; i < 5; i++) {
+        RejectPolicy rejectPolicy = null;
+        // 1、死等
+        rejectPolicy = (RejectPolicy<Runnable>) (queue, task) -> queue.put(task);
+        // 2、带超时等待
+        rejectPolicy = (RejectPolicy<Runnable>) (queue, task) -> queue.offer(task, 500, TimeUnit.MILLISECONDS);
+        // 3、让调用者放弃任务执行
+        rejectPolicy = (RejectPolicy<Runnable>) (queue, task) -> log.info("放弃任务{}", task);
+        // 4、让调用者抛出异常，跟放弃执行的方式区别：抛出异常，下面循环中后面的任务根本不会执行
+        rejectPolicy = (RejectPolicy<Runnable>) (queue, task) -> {throw new RuntimeException("任务执行失败"+task);};
+        // 4、让调用者自己执行任务，跟放弃执行的方式区别：抛出异常，下面循环中后面的任务根本不会执行
+        rejectPolicy = (RejectPolicy<Runnable>) (queue, task) -> {log.info("main执行{}", task); task.run();};
+
+        ThreadPool threadPool = new ThreadPool(
+                1,
+                1000,
+                TimeUnit.MILLISECONDS,
+                1,
+                rejectPolicy
+        );
+        for (int i = 0; i < 4; i++) {
             int j = i;
-            threadPool.execute(() -> log.info("{}", j));
+            threadPool.execute(() -> {
+                try {
+                    Thread.sleep(1000L);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                log.info("{}", j);
+            });
         }
     }
+}
+
+/**
+ * 拒绝策略接口
+ * */
+@FunctionalInterface
+interface RejectPolicy<T> {
+
+    void reject(BlockingQueue<T> queue, T task);
 }
 
 @Slf4j(topic = "my.ThreadPool")
@@ -44,12 +78,16 @@ class ThreadPool {
     /** 时间单位 */
     private TimeUnit timeUnit;
 
+    /** 拒绝策略 */
+    private RejectPolicy<Runnable> rejectPolicy;
+
     /** 构造方法 */
-    public ThreadPool(int coreSize, long timeout, TimeUnit timeUnit, int queueCapcity) {
+    public ThreadPool(int coreSize, long timeout, TimeUnit timeUnit, int queueCapcity, RejectPolicy<Runnable> rejectPolicy) {
         this.coreSize = coreSize;
         this.timeout = timeout;
         this.timeUnit = timeUnit;
         this.taskQueue = new BlockingQueue<>(queueCapcity);
+        this.rejectPolicy = rejectPolicy;
     }
 
     /**
@@ -69,14 +107,14 @@ class ThreadPool {
                 worker.start();
             } else {
                 // 加入任务队列，put方法里面，如果等待队列的任务数等于容量，则等待，但这样对主线程非常不友好。所以可以引入拒绝策略
-                taskQueue.put(task);
-                //
-//                // 1) 死等
-//                // 2) 带超时等待
-//                // 3) 让调用者放弃任务执行
-//                // 4) 让调用者抛出异常
-//                // 5) 让调用者自己执行任务
-//                taskQueue.tryPut(rejectPolicy, task);
+//                taskQueue.put(task);
+                // 队列满了可以做出的选择有如下：
+                // 1) 死等
+                // 2) 带超时等待
+                // 3) 让调用者放弃任务执行
+                // 4) 让调用者抛出异常
+                // 5) 让调用者自己执行任务
+                taskQueue.tryPut(rejectPolicy, task);
             }
         }
     }
@@ -110,7 +148,7 @@ class ThreadPool {
                 }
             }
             synchronized (workers) {
-                log.debug("worker 被移除 {}", this);
+                log.debug("worker被worker集合移除 {}", this);
                 workers.remove(this);
             }
         }
@@ -222,12 +260,58 @@ class BlockingQueue<T> {
     }
 
     /**
+     * 带超时时间阻塞添加：往阻塞队列里添加元素-相当于在生产
+     * */
+    public boolean offer(T task, long timeout, TimeUnit timeUnit) {
+        lock.lock();
+        try {
+            long nanos = timeUnit.toNanos(timeout);
+            while (queue.size() == capcity) {
+                try {
+                    if(nanos <= 0) {
+                        return false;
+                    }
+                    log.debug("等待加入任务队列 {} ...", task);
+                    nanos = fullWaitSet.awaitNanos(nanos);} catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            log.debug("加入任务队列 {}", task);
+            queue.addLast(task);
+            emptyWaitSet.signal();
+            return true;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
      * 获取阻塞队列大小
      * */
     public int size() {
         lock.lock();
         try {
             return queue.size();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * 带拒绝策略的添加任务
+     * */
+    public void tryPut(RejectPolicy<T> rejectPolicy, T task) {
+        lock.lock();
+        try {
+            // 判断队列是否满
+            if(queue.size() == capcity) {
+                rejectPolicy.reject(this, task);
+            } else {
+                // 有空闲
+                log.debug("加入任务队列 {}", task);
+                queue.addLast(task);
+                emptyWaitSet.signal();
+            }
         } finally {
             lock.unlock();
         }
