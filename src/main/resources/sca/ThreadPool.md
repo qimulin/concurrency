@@ -121,4 +121,4 @@ public ThreadPoolExecutor(
 
 ![拒绝策略接口和实现](../images/20230817003.png)
 
-根据这个构造方法，JDK Executors 类中提供了众多工厂方法来创建各种用途的线程池
+根据这个构造方法，JDK Executors 类中提供了众多工厂方法来创建各种用途的线程池（其实就是定好了各种参数组合）
