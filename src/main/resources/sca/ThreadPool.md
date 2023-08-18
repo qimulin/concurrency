@@ -122,3 +122,67 @@ public ThreadPoolExecutor(
 ![拒绝策略接口和实现](../images/20230817003.png)
 
 根据这个构造方法，JDK Executors 类中提供了众多工厂方法来创建各种用途的线程池（其实就是定好了各种参数组合）
+
+#### newFixedThreadPool
+翻译过来：创建一个固定大小的线程池
+```java
+public static ExecutorService newFixedThreadPool(int nThreads) {
+    return new ThreadPoolExecutor(nThreads, nThreads, 
+        0L, TimeUnit.MILLISECONDS,
+        new LinkedBlockingQueue<Runnable>());
+}
+```
+
+特点
+- 核心线程数=最大线程数（没有救急线程被创建），因此也无需超时时间
+- 阻塞队列是无界的，可以放任意数量的任务（自解：队列构造函数中没有指定容量大小，但其实我看无参构造，也是有容量值的，只不过是Integer.MAX_VALUE，很大了，相当于无界）
+
+> **评价** 适用于任务量已知，相对耗时的任务
+
+#### newCachedThreadPool
+翻译过来：带缓冲功能的线程池
+```java
+public static ExecutorService newCachedThreadPool() {
+    return new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+        60L, TimeUnit.SECONDS,
+        new SynchronousQueue<Runnable>());
+}
+```
+
+**特点**
+- 核心线程数是 0， 最大线程数是 Integer.MAX_VALUE，救急线程的空闲生存时间是 60s，意味着
+  - 全部都是救急线程（60s 后可以回收）
+  - 救急线程可以无限创建
+- 队列采用了 SynchronousQueue 实现特点是，它没有容量，没有线程来取是放不进去的（一手交钱、一手交货），可参考[代码](../../../../src/main/java/lin/xi/chun/concurrency/threadpool/TestSynchronousQueue.java)
+
+> **评价** 整个线程池表现为线程数会根据任务量不断增长，没有上限，当任务执行完毕，空闲1分钟后释放线程。\
+> 适合任务数比较密集，但每个任务执行时间较短的情况。
+> 
+> 自解：并不是同时只能执行一个，单个线程如果任务耗时时间长的话，还是会并发执行多个的。例如：来一个快递员取件给一个快递，那送快递的时间要是长，
+> 会同时有多个快递员一起送快递的。
+
+#### newSingleThreadExecutor
+```java
+public static ExecutorService newSingleThreadExecutor() {
+    return new FinalizableDelegatedExecutorService(
+            new ThreadPoolExecutor(1, 1, 
+                0L, TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<Runnable>()));
+}
+```
+**特点**
+- 核心线程数是1， 最大线程数是1，意味着没有救急线程。
+- 队列选择的也是阻塞的，没有边界的队列。
+
+**使用场景：**
+
+希望多个任务排队执行。线程数固定为 1，任务数多于 1 时，会放入无界队列排队。任务执行完毕，这唯一的线程也不会被释放。
+
+1. 那和创建一个线程，执行一堆任务有什么区别呢？
+
+- <font color="red">自己创建一个单线程串行执行任务，如果任务执行失败而终止那么没有任何补救措施，而线程池还会新建一个线程，保证池的正常工作</font>，可参考[代码](../../../../src/main/java/lin/xi/chun/concurrency/threadpool/TestSynchronousQueue.java)
+
+2. 那和Executors.newFixedThreadPool(1) 初始值设为1有什么区别呢？
+
+- Executors.newFixedThreadPool(1) 初始时为1，以后<font color="red">还可以修改</font>。而且new返回的是ThreadPoolExecutor对象，可以强转后调用 setCorePoolSize等方法进行修改
+- 根据上一点，所以需要Executors.newSingleThreadExecutor() 线程个数始终为1，不能修改。因此它<font color="red">外面包装了FinalizableDelegatedExecutorService，应用的是装饰器模式</font>，只对外暴露了ExecutorService接口，因此不能调用ThreadPoolExecutor中特有的方法
