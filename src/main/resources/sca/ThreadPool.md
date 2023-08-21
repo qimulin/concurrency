@@ -186,3 +186,26 @@ public static ExecutorService newSingleThreadExecutor() {
 
 - Executors.newFixedThreadPool(1) 初始时为1，以后<font color="red">还可以修改</font>。而且new返回的是ThreadPoolExecutor对象，可以强转后调用 setCorePoolSize等方法进行修改
 - 根据上一点，所以需要Executors.newSingleThreadExecutor() 线程个数始终为1，不能修改。因此它<font color="red">外面包装了FinalizableDelegatedExecutorService，应用的是装饰器模式</font>，只对外暴露了ExecutorService接口，因此不能调用ThreadPoolExecutor中特有的方法
+
+#### 提交任务
+```java
+// 执行任务
+void execute(Runnable command);
+
+// 提交任务 task，用返回值 Future 获得任务执行结果
+<T> Future<T> submit(Callable<T> task);
+
+// 提交 tasks 中所有任务
+<T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks) throws InterruptedException;
+
+// 提交 tasks 中所有任务，带超时时间
+<T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) throws InterruptedException;
+
+// 提交 tasks 中所有任务，哪个任务先成功执行完毕，返回此任务执行结果，其它任务取消
+<T> T invokeAny(Collection<? extends Callable<T>> tasks) throws InterruptedException, ExecutionException;
+
+// 提交 tasks 中所有任务，哪个任务先成功执行完毕，返回此任务执行结果，其它任务取消，带超时时间
+<T> T invokeAny(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException;
+```
+
+Callable与Runnable相比多了返回结果。那它是怎么接收返回结果呢？其实它利用的是之前讲过“保护性暂停模式”，可参考[代码](../../../../src/main/java/lin/xi/chun/concurrency/thread/cp_pattern/synchronous/guarded_suspension/GuardedSuspensionTest1.java)
