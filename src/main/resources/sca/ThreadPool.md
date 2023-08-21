@@ -209,3 +209,89 @@ void execute(Runnable command);
 ```
 
 Callable与Runnable相比多了返回结果。那它是怎么接收返回结果呢？其实它利用的是之前讲过“保护性暂停模式”，可参考[代码](../../../../src/main/java/lin/xi/chun/concurrency/thread/cp_pattern/synchronous/guarded_suspension/GuardedSuspensionTest1.java)
+
+#### 关闭线程池
+
+**shutdown**
+```java
+/*
+  线程池状态变为 SHUTDOWN
+  - 不会接收新任务
+  - 但已提交任务会执行完
+  - 此方法不会阻塞调用线程的执行
+*/
+void shutdown();
+```
+
+```java
+/**
+ * 主要源码
+ */
+public void shutdown() {
+    final ReentrantLock mainLock = this.mainLock;
+    mainLock.lock();
+    try {
+        checkShutdownAccess();
+        // 修改线程池状态
+        advanceRunState(SHUTDOWN);
+        // 仅会打断空闲线程
+        interruptIdleWorkers();
+        onShutdown(); // 扩展点 ScheduledThreadPoolExecutor
+    } finally {
+        mainLock.unlock();
+    }
+    // 尝试终结(没有运行的线程可以立刻终结，如果还有运行的线程也不会等)
+    tryTerminate();
+}
+```
+
+**shutdownNow**
+
+```java
+/*
+  线程池状态变为 STOP
+  - 不会接收新任务
+  - 会将等待队列中的任务返回
+  - 并用 interrupt 的方式中断正在执行的任务
+*/
+List<Runnable> shutdownNow();
+```
+
+```java
+/**
+ * 主要源码
+ */
+public List<Runnable> shutdownNow() {
+    List<Runnable> tasks;
+    final ReentrantLock mainLock = this.mainLock;
+    mainLock.lock();
+    try {
+        checkShutdownAccess();
+        // 修改线程池状态
+        advanceRunState(STOP);
+        // 打断所有线程
+        interruptWorkers();
+        // 获取队列中剩余任务
+        tasks = drainQueue();
+    } finally {
+        mainLock.unlock();
+    }
+    // 尝试终结
+    tryTerminate();
+    // 返回队列中剩余任务
+    return tasks;
+}
+```
+
+#### 其它方法
+
+```java
+// 不在 RUNNING 状态的线程池，此方法就返回 true
+boolean isShutdown();
+
+// 线程池状态是否是 TERMINATED，相当于线程池已经停止工作了
+boolean isTerminated();
+
+// 调用 shutdown 后，由于调用线程并不会等待所有任务运行结束，因此如果它想在线程池 TERMINATED 后做些事情，可以利用此方法等待
+boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException;
+```
