@@ -1,4 +1,4 @@
-package lin.xi.chun.concurrency.thread.cp_pattern.synchronous.guarded_suspension;
+package lin.xi.chun.concurrency.cp_pattern.synchronous.guarded_suspension;
 
 /**
  * @author zhou.wu

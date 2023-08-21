@@ -1,4 +1,4 @@
-package lin.xi.chun.concurrency.thread.cp_pattern.termination.two_phase_termination;
+package lin.xi.chun.concurrency.cp_pattern.termination.two_phase_termination;
 
 import lombok.extern.slf4j.Slf4j;
 

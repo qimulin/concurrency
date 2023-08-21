@@ -1,4 +1,4 @@
-package lin.xi.chun.concurrency.thread.cp_pattern.asynchronous.producer_consumer;
+package lin.xi.chun.concurrency.cp_pattern.asynchronous.producer_consumer;
 
 /**
  * @author zhou.wu
