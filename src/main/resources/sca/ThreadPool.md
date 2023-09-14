@@ -335,4 +335,5 @@ boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedExceptio
 <font color="red">但由于所有任务都是由同一个线程来调度， 因此所有任务都是串行执行的，同一时间只能有一个任务在执行，前一个任务的延迟或异常都将会影响到之后的任务。</font>
 (例如第一个任务出现异常没有被正确捕获处理)
 
-先来看下Timer的基本使用，
+先来看下Timer的基本使用[示例](../../../../src/main/java/lin/xi/chun/concurrency/threadpool/TestTimer.java)，
+知道了它的缺点之后，使用ScheduledExecutorService改写[示例](../../../../src/main/java/lin/xi/chun/concurrency/threadpool/TestScheduleThreadPool.java)
