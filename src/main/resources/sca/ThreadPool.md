@@ -339,3 +339,145 @@ boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedExceptio
 知道了它的缺点之后，使用ScheduledExecutorService改写[示例](../../../../src/main/java/lin/xi/chun/concurrency/threadpool/TestScheduleThreadPool.java)
 
 另外，再演示一个“如何让每周四 18:00:00 定时执行任务？”的[示例](../../../../src/main/java/lin/xi/chun/concurrency/threadpool/TestScheduleApply.java)
+
+## 线程池在Tomcat中的应用
+
+Tomcat 在哪里用到了线程池呢？本文要讲的就是它的连接器部分
+
+![Tomcat连接器的重要组成](../images/20230914141229.png)
+
+- LimitLatch 用来限流，可以控制最大连接个数，类似 J.U.C 中的 Semaphore 后面再讲
+- Acceptor 只负责【接收新的 socket 连接】（是个线程，死循环，一直在判断有没有新的连接）
+- Poller 只负责监听 socket channel 是否有【可读的 I/O 事件】（也是个线程，判断是否有可读事件发生） 一旦可读，封装一个任务对象（socketProcessor），提交给 Executor 线程池处理
+- Executor 线程池中的工作线程最终负责【处理请求】（worker线程去干活）
+
+Tomcat 线程池扩展了 ThreadPoolExecutor，行为稍有不同
+- 如果总线程数达到 maximumPoolSize
+  - 这时不会立刻抛 RejectedExecutionException 异常
+  - 而是再次尝试将任务放入队列，如果还失败，才抛出 RejectedExecutionException 异常
+
+源码 tomcat-7.0.42
+```java
+public void execute(Runnable command,long timeout,TimeUnit unit){
+    submittedCount.incrementAndGet();
+    try{
+        // 刚开始，执行父类的执行方法
+        super.execute(command);
+    }catch(RejectedExecutionException rx){
+        // 获取阻塞队列
+        if(super.getQueue() instanceof TaskQueue){
+            final TaskQueue queue=(TaskQueue)super.getQueue();
+            try{
+                // 尝试将任务加入队列
+                if(!queue.force(command,timeout,unit)){
+                    submittedCount.decrementAndGet();
+                    // 重试仍然失败，抛出异常
+                    throw new RejectedExecutionException("Queue capacity is full.");
+                }
+            }catch(InterruptedException x){
+              submittedCount.decrementAndGet();
+              Thread.interrupted();
+              throw new RejectedExecutionException(x);
+            }
+        }else{
+          submittedCount.decrementAndGet();
+          throw rx;
+        }
+    }
+}
+```
+
+TaskQueue.java
+```java
+public boolean force(Runnable o, long timeout, TimeUnit unit) throws InterruptedException {
+    if ( parent.isShutdown() ) 
+        throw new RejectedExecutionException("Executor not running, can't force a command into the queue");
+    return super.offer(o,timeout,unit); //forces the item onto the queue, to be used if the task is rejected
+}
+```
+
+Connector 配置
+<table>
+    <tr>
+        <th>配置项</th>
+        <th>默认值</th>
+        <th>说明</th>
+    </tr>
+    <tr>
+        <td>acceptorThreadCount</td>
+        <td>1</td>
+        <td>acceptor 线程数量</td>
+    </tr>
+    <tr>
+        <td>pollerThreadCount</td>
+        <td>1</td>
+        <td>poller 线程数量（多路复用）</td>
+    </tr>
+    <tr>
+        <td>minSpareThreads</td>
+        <td>10</td>
+        <td>核心线程数，即 corePoolSize</td>
+    </tr>
+    <tr>
+        <td>maxThreads</td>
+        <td>200</td>
+        <td>最大线程数，即 maximumPoolSize</td>
+    </tr>
+    <tr>
+        <td>executor</td>
+        <td>-</td>
+        <td>Executor 名称，用来引用下面的 Executor（自定义的Executor会覆盖minSpareThreads和maxThreads配置，以自定义的Executor为主）</td>
+    </tr>
+</table>
+
+Executor 线程配置
+<table>
+    <tr>
+        <th>配置项</th>
+        <th>默认值</th>
+        <th>说明</th>
+    </tr>
+    <tr>
+        <td>threadPriority</td>
+        <td>5</td>
+        <td>线程优先级</td>
+    </tr>
+    <tr>
+        <td>daemon</td>
+        <td>true</td>
+        <td>是否守护线程（会随着主线程结束而结束）</td>
+    </tr>
+    <tr>
+        <td>minSpareThreads</td>
+        <td>25</td>
+        <td>核心线程数，即 corePoolSize</td>
+    </tr>
+    <tr>
+        <td>maxThreads</td>
+        <td>200</td>
+        <td>最大线程数，即 maximumPoolSize</td>
+    </tr>
+    <tr>
+        <td>maxIdleTime</td>
+        <td>60000</td>
+        <td>（救急）线程生存时间，单位是毫秒，默认值即 1 分钟</td>
+    </tr>
+    <tr>
+        <td>maxQueueSize</td>
+        <td>Integer.MAX_VALUE</td>
+        <td>队列长度（Integer.MAX_VALUE相当于无界，这样容易造成任务堆积，最好还是设置个合适的值）</td>
+    </tr>
+    <tr>
+        <td>prestartminSpareThreads</td>
+        <td>false</td>
+        <td>核心线程是否在服务器启动时启动（是否饿汉非懒汉，服务器一启动，核心线程数创建出来）</td>
+    </tr>
+</table>
+
+那上面配置表看到等待队列长度最大值是Integer.MAX_VALUE，那是不是就表示没有救急线程需要被创建？其实不然，Tomcat对队列实现也是做了扩展。
+如下，是Tomcat队列处理流程：
+![Tomcat队列处理流程](../images/20230914144128.png)
+
+结合上图，发现Tomcat队列实现和JDK中线程池逻辑的不同：
+- JDK中，当核心线程数被用完，等待队列也满的时候，会创建救急线程
+- Tomcat中，当核心线程数用完，就会开始创建救急线程了，而当任务的数量仍超过（核心线程+救急线程），才会将任务加入等待队列。
