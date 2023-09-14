@@ -481,3 +481,26 @@ Executor 线程配置
 结合上图，发现Tomcat队列实现和JDK中线程池逻辑的不同：
 - JDK中，当核心线程数被用完，等待队列也满的时候，会创建救急线程
 - Tomcat中，当核心线程数用完，就会开始创建救急线程了，而当任务的数量仍超过（核心线程+救急线程），才会将任务加入等待队列。
+
+## ForkJoinPool线程池
+
+### 概念
+
+Fork/Join 是 JDK 1.7 加入的新的线程池实现，它体现的是一种分治思想，适用于能够进行<font color="red">任务拆分</font>的 cpu 密集型运算
+
+所谓的任务拆分，是将一个大任务拆分为算法上相同的小任务，直至不能拆分可以直接求解。跟递归相关的一些计算，如归并排序、斐波那契数列、都可以用分治思想进行求解
+
+Fork/Join 在分治的基础上加入了多线程，可以把每个任务的分解和合并交给不同的线程来完成，进一步提升了运算效率
+
+Fork/Join 默认会创建与 cpu 核心数大小相同的线程池
+
+### 使用
+
+提交给 Fork/Join 线程池的任务需要继承 RecursiveTask（有返回值）或 RecursiveAction（没有返回值），例如下面定义了一个对 1~n 之间的整数求和的任务.
+
+来看[示例](../../../../src/main/java/lin/xi/chun/concurrency/threadpool/TestForkJoin.java)，其中：
+
+- AddTask1的计算流程
+  ![AddTask1的计算流程](../images/20230914154926.png)
+- AddTask3的计算流程（AddTask1的拆分形式有个缺点，任务相互依赖，AddTask3则可以做到并行执行）
+  ![AddTask2的计算流程](../images/20230914155625.png)
