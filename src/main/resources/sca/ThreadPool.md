@@ -337,3 +337,5 @@ boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedExceptio
 
 先来看下Timer的基本使用[示例](../../../../src/main/java/lin/xi/chun/concurrency/threadpool/TestTimer.java)，
 知道了它的缺点之后，使用ScheduledExecutorService改写[示例](../../../../src/main/java/lin/xi/chun/concurrency/threadpool/TestScheduleThreadPool.java)
+
+另外，再演示一个“如何让每周四 18:00:00 定时执行任务？”的[示例](../../../../src/main/java/lin/xi/chun/concurrency/threadpool/TestScheduleApply.java)
