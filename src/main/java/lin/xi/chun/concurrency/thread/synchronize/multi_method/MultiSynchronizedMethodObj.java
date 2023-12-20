@@ -30,4 +30,14 @@ public class MultiSynchronizedMethodObj {
             e.printStackTrace();
         }
     }
+
+    public void method3(){
+        try {
+            log.info("method3 start");
+            TimeUnit.SECONDS.sleep(1);
+            log.info("method3 end");
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
 }

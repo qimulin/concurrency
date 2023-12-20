@@ -10,7 +10,9 @@ public class MultiSynchronizedMethodDemo {
 
     /**
      * 验证多线程下多个同步方法是否互相影响方法执行
-     * 结论：所有synchronized修饰的方法都是互相影响的，既执行m1的时候，m2也是需要等待m1执行完释放锁的
+     * 结论：
+     * - 所有synchronized修饰的方法都是互相影响的，既执行m1的时候，m2也是需要等待m1执行完释放锁的
+     * - 非同步方法不受锁约束
      */
     public static void main(String[] args) {
         MultiSynchronizedMethodObj obj = new MultiSynchronizedMethodObj();
