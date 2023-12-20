@@ -16,7 +16,6 @@ public class AtomicIntegerTest {
     public static void main(String[] args) {
         AtomicInteger i = new AtomicInteger(0);
         // compareAndSet方法不是很方便，往往要配合while循环，以下很多方法，原理也是compareAndSet方法配合while循环
-
         // 获取并自增（i = 0, 结果 i = 1, 返回 0），类似于 i++
         System.out.println(i.getAndIncrement());
         // 自增并获取（i = 1, 结果 i = 2, 返回 2），类似于 ++i
