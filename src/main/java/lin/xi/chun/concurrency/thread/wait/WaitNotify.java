@@ -5,8 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.concurrent.TimeUnit;
 
 /**
+ * 利用wait进行改进
  * @author zhou.wu
- * @description: 利用wait进行改进
  * @date 2022/8/9
  **/
 @Slf4j

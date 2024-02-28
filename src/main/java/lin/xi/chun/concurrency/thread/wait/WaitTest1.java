@@ -1,8 +1,8 @@
 package lin.xi.chun.concurrency.thread.wait;
 
 /**
+ * wait与suspend方法的区别
  * @author zhou.wu
- * @description wait与suspend方法的区别
  * @date 2022/8/9
  **/
 public class WaitTest1 {
